@@ -1,59 +1,59 @@
-local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
-local localPlayer = Players.LocalPlayer
+本地UserInputService=game:GetService("UserInputService")
+本地玩家=游戏：GetService(“玩家”)
+本地localPlayer=players.LocalPlayer
 
-local loopChallengeRunning = false
-local panelVisible = false
-local loopInterval = 98
+本地loopChallengeRunning=false
+本地面板visible=false
+local loopInterval=98
 
-local autoAfk = false
-local rangeLimit = 16.66
-local spawnPosition = nil
+本地autoAfk=false
+局部rangelimit=16.66
+本地spawnPosition=nil
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "MainPanelUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+本地ScreenGui=Instance.new("ScreenGui")
+ScreenGuui.Name="主面板UI"
+ScreenGui.ResetOnSpawn=false
+父=localPlayer:WaitForChild("PlayerGui")
 
-local MainButton = Instance.new("TextButton")
-MainButton.Size = UDim2.new(0, 140, 0, 48)
-MainButton.Position = UDim2.new(0.05, 0, 0.3, 0)
-MainButton.BackgroundColor3 = Color3.new(0.12, 0.22, 0.35)
-MainButton.BorderColor3 = Color3.new(0.5, 0.8, 1)
-MainButton.BorderSizePixel = 2
-MainButton.Text = "养大一只鸡战士功能菜单"
-MainButton.TextColor3 = Color3.new(1,1,1)
-MainButton.Font = Enum.Font.SourceSansBold
-MainButton.TextSize = 14
-MainButton.Parent = ScreenGui
+本地主按钮=Instance.new("TextButton")
+MainButton.Size=UDim2.new(0，140，0，48)
+MainButton.Position=UDim2.new(0.05，0，0.3，0)
+MainButton.BackgroundColor3=Color3.new(0.12、0.22、0.35)
+MainButton.BorderColor3=Color3.new(0.5、0.8、1)
+MainButton.BorderSizePixel=2
+MainButton.Text="养大一只鸡战士功能菜单"
+MainButton.TextColor3=Color3.new(1，1，1)
+MainButton.Font=枚举.Font.SourceSansBold
+MainButton.TextSize=14
+MainButton.Parent=ScreenGui
 
-local MainPanel = Instance.new("Frame")
-MainPanel.Size = UDim2.new(0, 320, 0, 320)
-MainPanel.AnchorPoint = Vector2.new(0.5, 0.5)
-MainPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
-MainPanel.BackgroundColor3 = Color3.new(0.1, 0.1, 0.15)
-MainPanel.BorderColor3 = Color3.new(0.4, 0.6, 0.9)
-MainPanel.BorderSizePixel = 2
-MainPanel.Visible = false
-MainPanel.Parent = ScreenGui
+本地主面板=Instance.new("Frame")
+MainPanel.Size=UDim2.new(0，320，0，320)
+MainPanel.AnchorPoint=Vector2.new(0.5，0.5)
+主面板位置=UDim2.new(0.5，0，0.5，0)
+MainPanel.BackgroundColor3=Color3.new(0.1、0.1、0.15)
+主面板。BorderColor3=Color3.New(0.4、0.6、0.9)
+MainPanel.BorderSizePixel=2
+MainPanel.Visible=false
+MainPanel.Parent=ScreenGui
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -40, 0, 36)
-Title.BackgroundTransparency = 1
-Title.Text = "功能主面板"
-Title.TextColor3 = Color3.new(1,1,1)
-Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 17
-Title.Position = UDim2.new(0,10,0,0)
-Title.Parent = MainPanel
+本地标题=Instance.new("TextLabel")
+Title.Size=UDim2.new(1，-40，0，36)
+Title.BackgroundTransparency=1
+Title.Text="功能主面板"
+Title.TextColor3=Color3.new(1，1，1)
+Title.Font=枚举.Font.SourceSansBold
+Title.TextSize=17
+标题位置=UDim2.new(0，10，0，0)
+Title.Parent=主面板
 
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 36, 0, 36)
-CloseBtn.Position = UDim2.new(1, -38, 0, 0)
-CloseBtn.BackgroundColor3 = Color3.new(0.7,0.15,0.15)
+本地CloseBtn=Instance.new("TextButton")
+CloseBtn.Size=UDim2.new(0，36，0，36)
+CloseBtn.Position=UDim2.new(1，-38，0，0)
+CloseBtn.BackgroundColor3=Color3.New(0.7，0.15，0.15)
 CloseBtn.Text="×"
 CloseBtn.TextColor3=Color3.new(1，1，1)
-CloseBtn.Font=枚举.Font.SourceSansBold
+CloseBtn.Font=枚举。字体.SourceSansBold
 CloseBtn.TextSize=22
 CloseBtn.Parent=主面板
 
@@ -61,10 +61,10 @@ CloseBtn.Parent=主面板
 ResizeHandle.Size=UDim2.new(0，32，0，32)
 ResizeHandle.Position=UDim2.new(1，-32，1，-32)
 ResizeHandle.BackgroundTransparency=0.6
-ResizeHandle.BackgroundColor3=Color3.new(0.35，0.45，0.65)
+ResizeHandle。BackgroundColor3=Color3.New(0.35，0.45，0.65)
 ResizeHandle.Text="丿"
 ResizeHandle.TextColor3=Color3.new(1，1，1)
-ResizeHandle.Font=枚举.Font.SourceSansBold
+ResizeHandle.Font=枚举。字体.SourceSansBold
 ResizeHandle.TextSize=20
 ResizeHandle.Parent=主面板
 
@@ -74,20 +74,20 @@ toggleBtn.Position=UDim2.new(0.05，0，0.15，0)
 toggleBtn.BackgroundColor3=Color3.new(0.15，0.15，0.2)
 toggleBtn.Text="自动重生当前状态：[关闭]"
 toggleBtn.TextColor3=Color3.new(1，1，1)
-toggleBtn.Font=枚举.Font.SourceSansBold
+toggleBtn.Font=枚举。字体.SourceSansBold
 toggleBtn.TextSize=16
 toggleBtn.BorderSizePixel=2
 toggleBtn.BorderColor3=Color3.new(0.4，0.6，1)
 toggleBtn.Parent=主面板
 
-local afkMoveBtn = Instance.new("TextButton")
-afkMoveBtn.Size = UDim2.new(0.9, 0, 0, 50)
-afkMoveBtn.Position = UDim2.new(0.05, 0, 0.32, 0)
-afkMoveBtn.BackgroundColor3 = Color3.new(0.15,0.15,0.2)
-afkMoveBtn.Text = "挂机移动 当前状态:[关闭]"
-afkMoveBtn.TextColor3 = Color3.new(1,1,1)
-afkMoveBtn.Font = Enum.Font.SourceSansBold
-afkMoveBtn.TextSize = 16
+本地afkMoveBtn=Instance.new("TextButton")
+afkMoveBtn.Size=UDim2.new(0.9，0，0，50)
+afkMoveBtn.Position=UDim2.new(0.05，0，0.32，0)
+afkMoveBtn.BackgroundColor3=Color3.new(0.15，0.15，0.2)
+afkMoveBtn.Text="挂机移动当前状态：[关闭]"
+afkMoveBtn.TextColor3=Color3.new(1，1，1)
+afkMoveBtn.Font=枚举.Font.SourceSansBold
+afkMoveBtn.TextSize=16
 afkMoveBtn.BorderSizePixel = 2
 afkMoveBtn.BorderColor3 = Color3.new(0.4,0.6,1)
 afkMoveBtn.Parent = MainPanel
@@ -127,25 +127,25 @@ local function RunGeneratorCode()
     end)
     pcall(function()
         local args = {[1] = 1}
-        game:GetService("ReplicatedStorage").Remotes.BuyGenerator:InvokeServer(unpack(args))
-    end)
-    pcall(function()
-        local args = {[1] = 2}
-        game:GetService("ReplicatedStorage").Remotes.BuyGenerator:InvokeServer(unpack(args))
-    end)
-    pcall(function()
-        local args = {[1] = 1}
-        game:GetService("ReplicatedStorage").Remotes.UpgradeGenerator:InvokeServer(unpack(args))
-    end)
-    pcall(function()
-        local args = {[1] = 2}
-        game:GetService("ReplicatedStorage").Remotes.UpgradeGenerator:InvokeServer(unpack(args))
-    end)
-end
+游戏：GetService(“ReplicatedStorage”)。远程。BuyGenerator:InvokeServer(unpack(args))
+结束)
+pcall(函数()
+本地参数={[1]= 2}
+游戏：GetService(“ReplicatedStorage”)。远程。BuyGenerator:InvokeServer(unpack(args))
+结束)
+pcall(函数()
+本地参数={[1]= 1}
+游戏：GetService(“ReplicatedStorage”)。远程。UpgradeGenerator:InvokeServer(unpack(args))
+结束)
+pcall(函数()
+本地参数={[1]= 2}
+游戏：GetService(“ReplicatedStorage”)。远程。UpgradeGenerator:InvokeServer(unpack(args))
+结束)
+结束
 
-local function RunTowerElevatorSequence()
-    local num = 1
-    local totalTimes = 20
+局部函数RunTowerElevatorSequence()
+local num=1
+= 1}
     for i = 1, totalTimes do
         if not loopChallengeRunning then break end
         pcall(function()
