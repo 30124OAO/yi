@@ -1,1 +1,1 @@
-loadstring(游戏：HttpGet("https://raw.githubusercontent.com/30124OAO/yi/main/src/main.lua"))()
+loadstring(game:HttpGet(""))()
