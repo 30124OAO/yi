@@ -1,0 +1,922 @@
+--养大一只鸡战士功能面板
+--脚本作者b站UID:647396778
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- 全局总开关
+local globalRunning = true
+local loopChallengeRunning = false
+local panelVisible = false
+local suspendTowerLoops = false
+local detectTriggerCount = 0
+local triggerCooldown = 0
+local autoAfk = false
+local rangeLimit = 16.66
+local spawnPosition = nil
+
+local autoScrapRunning = false
+local reachRange = 5.5
+local targetScrapPos = nil
+local collectedCount = 0
+local selectNum = 1
+local recycleDestination
+local towerDelaySliderValue = 12
+local threadPool = {}
+
+-- === 弹窗总开关（默认开启）===
+local popupEnable = true
+
+-- ========= 弹窗通知模块（右上角、无淡入淡出、到时直接销毁） =========
+local activePopups = {}
+local function CreatePopup(text, lifeTime)
+    --弹窗总开关关闭，则直接退出，不创建弹窗
+    if not popupEnable then return end
+	
+    --弹窗数量上限3，移除最早的弹窗防止界面拥挤
+    while #activePopups >= 3 do
+        local oldGui = table.remove(activePopups,1)
+        pcall(function() oldGui:Destroy() end)
+    end
+
+    local PopGui = Instance.new("ScreenGui")
+    PopGui.Name = "NotifyPopup"
+    PopGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    PopGui.ResetOnSpawn = false
+    PopGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+    local PopFrame = Instance.new("Frame")
+    PopFrame.Size = UDim2.new(0,240,0,56)
+    PopFrame.Position = UDim2.new(1,-250,0.02, #activePopups * 62)
+    PopFrame.BackgroundColor3 = Color3.new(0.15,0.18,0.25)
+    PopFrame.BorderColor3 = Color3.new(0.25,0.65,1)
+    PopFrame.BorderSizePixel = 2
+    PopFrame.Parent = PopGui
+
+    local PopLabel = Instance.new("TextLabel")
+    PopLabel.Size = UDim2.new(1,0,1,0)
+    PopLabel.BackgroundTransparency = 1
+    PopLabel.Text = text
+    PopLabel.TextColor3 = Color3.new(1,1,1)
+    PopLabel.Font = Enum.Font.SourceSansBold
+    PopLabel.TextSize = 14
+    PopLabel.TextWrapped = true
+    PopLabel.Parent = PopFrame
+
+    table.insert(activePopups,PopGui)
+
+    task.spawn(function()
+        task.wait(lifeTime)
+        local idx = table.find(activePopups,PopGui)
+        if idx then table.remove(activePopups,idx) end
+        pcall(function() PopGui:Destroy() end)
+    end)
+    return {gui = PopGui, label = PopLabel}
+end
+-- =====================================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MainPanelUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+local MainButton = Instance.new("TextButton")
+MainButton.Size = UDim2.new(0, 140, 0, 48)
+MainButton.Position = UDim2.new(0.05, 0, 0.3, 0)
+MainButton.BackgroundColor3 = Color3.new(0.12, 0.22, 0.35)
+MainButton.BorderColor3 = Color3.new(0.5, 0.8, 1)
+MainButton.BorderSizePixel = 2
+MainButton.Text = "养大一只鸡战士功能菜单"
+MainButton.TextColor3 = Color3.new(1,1,1)
+MainButton.Font = Enum.Font.SourceSansBold
+MainButton.TextSize = 14
+MainButton.Parent = ScreenGui
+
+local MainPanel = Instance.new("Frame")
+MainPanel.Size = UDim2.new(0, 380, 0, 395)
+MainPanel.Position = UDim2.new(0.5, -190, 0.5, -200)
+MainPanel.BackgroundColor3 = Color3.new(0.1, 0.1, 0.15)
+MainPanel.BorderColor3 = Color3.new(0.4, 0.6, 0.9)
+MainPanel.BorderSizePixel = 2
+MainPanel.Visible = false
+MainPanel.Active = true
+MainPanel.Parent = ScreenGui
+
+local VersionTip = Instance.new("TextLabel")
+VersionTip.Size = UDim2.new(0.94,0,0,32)
+VersionTip.Position = UDim2.new(0.03,0,0,0)
+VersionTip.BackgroundTransparency = 1
+VersionTip.Text = "更新时间:8月30日｜新增弹窗开关按钮、修复Player.Removing报错、NO THANKS自动拒绝"
+VersionTip.TextColor3 = Color3.new(0.65,0.85,1)
+VersionTip.Font = Enum.Font.SourceSans
+VersionTip.TextSize = 9
+VersionTip.TextWrapped = true
+VersionTip.LineHeight = 1.05
+VersionTip.Parent = MainPanel
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -40, 0, 32)
+Title.BackgroundTransparency = 1
+Title.Text = "功能主面板"
+Title.TextColor3 = Color3.new(1,1,1)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 17
+Title.Position = UDim2.new(0,10,0.08,0)
+Title.Parent = MainPanel
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 36, 0, 36)
+CloseBtn.Position = UDim2.new(1, -38, 0, 0)
+CloseBtn.BackgroundColor3 = Color3.new(0.7,0.15,0.15)
+CloseBtn.Text = "×"
+CloseBtn.TextColor3 = Color3.new(1,1,1)
+CloseBtn.Font = Enum.Font.SourceSansBold
+CloseBtn.TextSize = 22
+CloseBtn.Parent = MainPanel
+
+local ResizeHandle = Instance.new("TextButton")
+ResizeHandle.Size = UDim2.new(0, 32, 0, 32)
+ResizeHandle.Position = UDim2.new(1, -32, 1, -32)
+ResizeHandle.BackgroundTransparency = 0.6
+ResizeHandle.BackgroundColor3 = Color3.new(0.35,0.45,0.65)
+ResizeHandle.Text = "丿"
+ResizeHandle.TextColor3 = Color3.new(1,1,1)
+ResizeHandle.Font = Enum.Font.SourceSansBold
+ResizeHandle.TextSize = 20
+ResizeHandle.Parent = MainPanel
+
+local TipLabel = Instance.new("TextLabel")
+TipLabel.Size = UDim2.new(0.94,0,0,24)
+TipLabel.Position = UDim2.new(0.03,0,0.16,0)
+TipLabel.BackgroundTransparency = 1
+TipLabel.Text = "达到重生要求会自动返回撤离并重生！"
+TipLabel.TextColor3 = Color3.new(0.85,0.85,0.85)
+TipLabel.Font = Enum.Font.SourceSans
+TipLabel.TextSize = 10
+TipLabel.TextWrapped = true
+TipLabel.Parent = MainPanel
+
+--【新增】弹窗开关按钮（自动重生按钮左边）
+local popupToggleBtn = Instance.new("TextButton")
+popupToggleBtn.Size = UDim2.new(0.94, 0, 0, 32)
+popupToggleBtn.Position = UDim2.new(0.03, 0, 0.23, 0)
+popupToggleBtn.BackgroundColor3 = Color3.new(0.20,0.22,0.30)
+popupToggleBtn.Text = "弹窗丨当前状态:开"
+popupToggleBtn.TextColor3 = Color3.new(1,1,1)
+popupToggleBtn.Font = Enum.Font.SourceSansBold
+popupToggleBtn.TextSize = 14
+popupToggleBtn.BorderSizePixel = 2
+popupToggleBtn.BorderColor3 = Color3.new(0.5,0.75,1)
+popupToggleBtn.Parent = MainPanel
+
+--【原有自动重生按钮】位置往下挪一行
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0.94, 0, 0, 32)
+toggleBtn.Position = UDim2.new(0.03, 0, 0.32, 0)
+toggleBtn.BackgroundColor3 = Color3.new(0.15,0.15,0.2)
+toggleBtn.Text = "自动重生 当前状态:[关闭] | 本次挂机已重生"..detectTriggerCount.."次"
+toggleBtn.TextColor3 = Color3.new(1,1,1)
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 14
+toggleBtn.BorderSizePixel = 2
+toggleBtn.BorderColor3 = Color3.new(0.4,0.6,1)
+toggleBtn.Parent = MainPanel
+
+local DelaySliderFrame = Instance.new("Frame")
+DelaySliderFrame.Size = UDim2.new(0.94,0,0,20)
+DelaySliderFrame.Position = UDim2.new(0.03,0,0.41,0)
+DelaySliderFrame.BackgroundColor3 = Color3.new(0.08,0.08,0.13)
+DelaySliderFrame.BorderSizePixel = 1
+DelaySliderFrame.BorderColor3 = Color3.new(0.3,0.5,0.8)
+DelaySliderFrame.Parent = MainPanel
+
+local DelaySliderFill = Instance.new("Frame")
+DelaySliderFill.Size = UDim2.new(0,0,1,0)
+DelaySliderFill.BackgroundColor3 = Color3.new(0.18,0.65,0.88)
+DelaySliderFill.Parent = DelaySliderFrame
+
+local DelaySliderKnob = Instance.new("TextButton")
+DelaySliderKnob.Size = UDim2.new(0,18,0,18)
+DelaySliderKnob.Position = UDim2.new(0,-9,0.5,-9)
+DelaySliderKnob.BackgroundColor3 = Color3.new(1,1,1)
+DelaySliderKnob.Text = ""
+DelaySliderKnob.BorderSizePixel =0
+DelaySliderKnob.Parent = DelaySliderFrame
+
+local DelaySliderText = Instance.new("TextLabel")
+DelaySliderText.Size = UDim2.new(1,0,1,0)
+DelaySliderText.BackgroundTransparency = 1
+DelaySliderText.TextColor3 = Color3.new(1,1,1)
+DelaySliderText.Font = Enum.Font.SourceSansBold
+DelaySliderText.TextSize = 11
+DelaySliderText.Text = tostring(towerDelaySliderValue).." / 30"
+DelaySliderText.Parent = DelaySliderFrame
+
+local sliderMinDelay = 6
+local sliderMaxDelay = 30
+local draggingDelaySlider = false
+
+local function UpdateDelaySliderUI(val)
+    local ratio = (val-sliderMinDelay)/(sliderMaxDelay-sliderMinDelay)
+    DelaySliderFill.Size = UDim2.new(ratio,0,1,0)
+    DelaySliderKnob.Position = UDim2.new(ratio,-9,0.5,-9)
+    towerDelaySliderValue = math.floor(val+0.5)
+    DelaySliderText.Text = string.format("%d / 30",towerDelaySliderValue)
+end
+UpdateDelaySliderUI(towerDelaySliderValue)
+
+DelaySliderKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingDelaySlider = true
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingDelaySlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local absPos = input.Position.X
+        local frameAbs = DelaySliderFrame.AbsolutePosition.X
+        local frameW = DelaySliderFrame.AbsoluteSize.X
+        local t = math.clamp((absPos-frameAbs)/frameW,0,1)
+        local v = sliderMinDelay + t*(sliderMaxDelay-sliderMinDelay)
+        UpdateDelaySliderUI(v)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingDelaySlider = false
+    end
+end)
+
+local afkMoveBtn = Instance.new("TextButton")
+afkMoveBtn.Size = UDim2.new(0.94, 0, 0, 32)
+afkMoveBtn.Position = UDim2.new(0.03, 0, 0.50, 0)
+afkMoveBtn.BackgroundColor3 = Color3.new(0.15,0.15,0.2)
+afkMoveBtn.Text = "挂机移动 当前状态:[关闭]"
+afkMoveBtn.TextColor3 = Color3.new(1,1,1)
+afkMoveBtn.Font = Enum.Font.SourceSansBold
+afkMoveBtn.TextSize = 14
+afkMoveBtn.BorderSizePixel = 2
+afkMoveBtn.BorderColor3 = Color3.new(0.4,0.6,1)
+afkMoveBtn.Parent = MainPanel
+
+local scrapBtn = Instance.new("TextButton")
+scrapBtn.Size = UDim2.new(0.94, 0, 0, 32)
+scrapBtn.Position = UDim2.new(0.03, 0, 0.59, 0)
+scrapBtn.BackgroundColor3 = Color3.new(0.15,0.15,0.2)
+scrapBtn.Text = "自动捡垃圾 当前状态:[关闭]"
+scrapBtn.TextColor3 = Color3.new(1,1,1)
+scrapBtn.Font = Enum.Font.SourceSansBold
+scrapBtn.TextSize = 13
+scrapBtn.BorderSizePixel = 2
+scrapBtn.BorderColor3 = Color3.new(0.4,0.6,1)
+scrapBtn.Parent = MainPanel
+
+local SliderFrame = Instance.new("Frame")
+SliderFrame.Size = UDim2.new(0.94,0,0,18)
+SliderFrame.Position = UDim2.new(0.03,0,0.68,0)
+SliderFrame.BackgroundColor3 = Color3.new(0.07,0.07,0.11)
+SliderFrame.BorderSizePixel =1
+SliderFrame.BorderColor3 = Color3.new(0.3,0.4,0.7)
+SliderFrame.Parent = MainPanel
+
+local SliderFill = Instance.new("Frame")
+SliderFill.Size = UDim2.new(0,0,1,0)
+SliderFill.BackgroundColor3 = Color3.new(0.2,0.7,0.9)
+SliderFill.Parent = SliderFrame
+
+local SliderKnob = Instance.new("TextButton")
+SliderKnob.Size = UDim2.new(0,18,0,18)
+SliderKnob.Position = UDim2.new(0,-9,0.5,-9)
+SliderKnob.BackgroundColor3 = Color3.new(1,1,1)
+SliderKnob.Text = ""
+SliderKnob.BorderSizePixel =0
+SliderKnob.Parent = SliderFrame
+
+local TipText = Instance.new("TextLabel")
+TipText.Size = UDim2.new(0.94,0,0,16)
+TipText.Position = UDim2.new(0.03,0,0.74,0)
+TipText.BackgroundTransparency =1
+TipText.Text = "捡（1）垃圾回去"
+TipText.TextColor3 = Color3.new(0.9,0.9,0.9)
+TipText.Font = Enum.Font.SourceSans
+TipText.TextSize =11
+TipText.Parent = MainPanel
+
+local NoticeText = Instance.new("TextLabel")
+NoticeText.Size = UDim2.new(0.94,0,0,30)
+NoticeText.Position = UDim2.new(0.03,0,0.80,0)
+NoticeText.BackgroundTransparency =1
+NoticeText.Text = "提示:本脚本无防挂机功能，可自动点击器来代替防止被检测挂机并踢出"
+NoticeText.TextColor3 = Color3.new(0.75,0.75,0.75)
+NoticeText.Font = Enum.Font.SourceSans
+NoticeText.TextSize =10
+NoticeText.TextWrapped=true
+NoticeText.Parent = MainPanel
+
+local sliderMin =1
+local sliderMax =6
+local draggingSlider =false
+
+local function UpdateSliderUI(val)
+    local ratio = (val-sliderMin)/(sliderMax-sliderMin)
+    SliderFill.Size = UDim2.new(ratio,0,1,0)
+    SliderKnob.Position = UDim2.new(ratio,-9,0.5,-9)
+    selectNum = math.floor(val)
+    TipText.Text = string.format("捡（%d）垃圾回去",selectNum)
+end
+UpdateSliderUI(selectNum)
+
+SliderKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSlider = true
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local absPos = input.Position.X
+        local frameAbs = SliderFrame.AbsolutePosition.X
+        local frameW = SliderFrame.AbsoluteSize.X
+        local t = math.clamp((absPos-frameAbs)/frameW,0,1)
+        local v = sliderMin + t*(sliderMax-sliderMin)
+        UpdateSliderUI(v)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSlider = false
+    end
+end)
+
+--【弹窗按钮点击事件】
+popupToggleBtn.MouseButton1Click:Connect(function()
+    popupEnable = not popupEnable
+    if popupEnable then
+        popupToggleBtn.Text = "弹窗丨当前状态:开"
+    else
+        popupToggleBtn.Text = "弹窗丨当前状态:关"
+        -- 关闭弹窗时销毁屏幕上现存全部弹窗
+        for _,gui in ipairs(activePopups) do
+            pcall(function() gui:Destroy() end)
+        end
+        table.clear(activePopups)
+    end
+end)
+
+local function IsUIVisible(guiObject)
+    local obj = guiObject
+    while obj do
+        if obj:IsA("GuiObject") then
+            if not obj.Visible then
+                return false
+            end
+        end
+        obj = obj.Parent
+    end
+    return true
+end
+
+local function IsOnScreen(guiObj)
+    local cam = workspace.CurrentCamera
+    local absPos = guiObj.AbsolutePosition
+    local absSize = guiObj.AbsoluteSize
+    local screenW, screenH = cam.ViewportSize.X, cam.ViewportSize.Y
+    local x1, y1 = absPos.X, absPos.Y
+    local x2, y2 = absPos.X + absSize.X, absPos.Y + absSize.Y
+    if x2 < 0 or x1 > screenW then return false end
+    if y2 < 0 or y1 > screenH then return false end
+    return true
+end
+
+local function CheckVisibleText(guiChild)
+    if not (guiChild:IsA("TextLabel") or guiChild:IsA("TextButton")) then
+        return false
+    end
+    if guiChild.Text == nil or guiChild.Text == "" then
+        return false
+    end
+    if not IsUIVisible(guiChild) then
+        return false
+    end
+    if not IsOnScreen(guiChild) then
+        return false
+    end
+    return true
+end
+
+local function RunGeneratorCode()
+    pcall(function()
+        local args = {[1] = 5}
+        game:GetService("ReplicatedStorage").Remotes.UpgradeGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 3}
+        game:GetService("ReplicatedStorage").Remotes.UpgradeGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 4}
+        game:GetService("ReplicatedStorage").Remotes.UpgradeGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 6}
+        game:GetService("ReplicatedStorage").Remotes.UpgradeGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 6}
+        game:GetService("ReplicatedStorage").Remotes.BuyGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 4}
+        game:GetService("ReplicatedStorage").Remotes.BuyGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 3}
+        game:GetService("ReplicatedStorage").Remotes.BuyGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 5}
+        game:GetService("ReplicatedStorage").Remotes.BuyGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 1}
+        game:GetService("ReplicatedStorage").Remotes.BuyGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 2}
+        game:GetService("ReplicatedStorage").Remotes.BuyGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 1}
+        game:GetService("ReplicatedStorage").Remotes.UpgradeGenerator:InvokeServer(unpack(args))
+    end)
+    pcall(function()
+        local args = {[1] = 2}
+        game:GetService("ReplicatedStorage").Remotes.UpgradeGenerator:InvokeServer(unpack(args))
+    end)
+end
+
+local function RunTowerElevatorSequence()
+    local num =1
+    local totalTimes =20
+    for i=1,totalTimes do
+        if not loopChallengeRunning or not globalRunning then break end
+        if suspendTowerLoops then break end
+        pcall(function()
+            local args = {[1]=num}
+            game:GetService("ReplicatedStorage").Remotes.TowerElevator:InvokeServer(unpack(args))
+        end)
+        pcall(function()
+            game:GetService("ReplicatedStorage").Remotes.TowerStart:InvokeServer()
+        end)
+        num = num +5
+        task.wait(0.1)
+    end
+end
+
+local function startLoop()
+    loopChallengeRunning = true
+    suspendTowerLoops = false
+    toggleBtn.Text = "自动重生 当前状态:[开启] | 本次挂机已重生"..detectTriggerCount.."次"
+    table.insert(threadPool, task.spawn(function()
+        if loopChallengeRunning and globalRunning and not suspendTowerLoops then
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remotes.TowerStart:InvokeServer()
+            end)
+            RunTowerElevatorSequence()
+        end
+    end))
+
+    table.insert(threadPool, task.spawn(function()
+        while loopChallengeRunning and globalRunning do
+            if suspendTowerLoops then
+                task.wait(0.5)
+                continue
+            end
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remotes.Rebirth:InvokeServer()
+            end)
+            task.wait(0.5)
+        end
+    end))
+
+    table.insert(threadPool, task.spawn(function()
+        local keywordRebirth = "REBIRTH READY!"
+        local keywordNoThanks = "NO THANKS"
+        local keywordTower = "TOWER"
+        local towerKeywordCooldown = 0
+        while loopChallengeRunning and globalRunning do
+            task.wait(0.5)
+            local playerGui = localPlayer:FindFirstChild("PlayerGui")
+            if not playerGui then continue end
+            if triggerCooldown > 0 then triggerCooldown -= 0.5 end
+            if towerKeywordCooldown > 0 then towerKeywordCooldown -= 0.5 end
+            local foundRebirth = false
+            local foundNoThanks = false
+            local foundTower = false
+            for _,child in ipairs(playerGui:GetDescendants()) do
+                if not child:IsDescendantOf(game) then continue end
+                if CheckVisibleText(child) then
+                    if string.find(child.Text, keywordRebirth,1,true) then foundRebirth = true end
+                    if string.find(child.Text, keywordNoThanks,1,true) then foundNoThanks = true end
+                    if string.find(child.Text, keywordTower,1,true) then foundTower = true end
+                end
+            end
+            --NO THANKS无冷却0.5秒检测执行
+            if foundNoThanks then
+                pcall(function()
+                    game:GetService("ReplicatedStorage").Remotes.TowerContinueDecline:FireServer()
+                end)
+            end
+
+            --重生检测+右上角弹窗
+            if foundRebirth and triggerCooldown <= 0 then
+                CreatePopup("已检测到可重生，正在返回",5)
+                detectTriggerCount +=1
+                triggerCooldown = 6.66
+                suspendTowerLoops = true
+                toggleBtn.Text = "自动重生 当前状态:[开启] | 本次挂机已重生"..detectTriggerCount.."次"
+                pcall(function()
+                    local args = {[1] = "coop"}
+                    game:GetService("ReplicatedStorage").Remotes.SetChickenOrder:FireServer(unpack(args))
+                end)
+                pcall(function()
+                    game:GetService("ReplicatedStorage").Remotes.TowerSurrender:InvokeServer()
+                end)
+                table.insert(threadPool, task.spawn(function()
+                    task.wait(9.99)
+                    if loopChallengeRunning and globalRunning then
+                        suspendTowerLoops = false
+                        pcall(function()
+                            game:GetService("ReplicatedStorage").Remotes.TowerStart:InvokeServer()
+                        end)
+                        RunTowerElevatorSequence()
+                    end
+                end))
+            end
+
+            --Tower塔倒计时弹窗（滑块读取、动态倒计时）
+            if foundTower and towerKeywordCooldown <= 0 then
+                local delaySec = towerDelaySliderValue
+                towerKeywordCooldown = delaySec
+                local towerNotify = CreatePopup(string.format("即将在%d秒后挑战塔",delaySec),9999)
+                table.insert(threadPool, task.spawn(function()
+                    local remain = delaySec
+                    while remain>1 do
+						--弹窗开关关闭直接终止倒计时弹窗线程
+						if not popupEnable then break end
+                        towerNotify.label.Text = string.format("即将在%d秒后挑战塔",remain)
+                        remain = remain - 1
+                        task.wait(1)
+                        if not (loopChallengeRunning and globalRunning) or suspendTowerLoops then
+                            pcall(function() towerNotify.gui:Destroy() end)
+                            return
+                        end
+                    end
+					if popupEnable then
+						towerNotify.label.Text = string.format("即将在%d秒后挑战塔",remain)
+						task.wait(1)
+						pcall(function() towerNotify.gui:Destroy() end)
+						CreatePopup("正在挑战",3.8)
+					end
+                    RunTowerElevatorSequence()
+                    if loopChallengeRunning and globalRunning and not suspendTowerLoops then
+                        pcall(function()
+                            game:GetService("ReplicatedStorage").Remotes.TowerStart:InvokeServer()
+                        end)
+                    end
+                end))
+            end
+        end
+    end))
+
+    table.insert(threadPool, task.spawn(function()
+        while loopChallengeRunning and globalRunning do
+            RunGeneratorCode()
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remotes.ExpandCoop:InvokeServer()
+            end)
+            task.wait(1)
+        end
+    end))
+
+    table.insert(threadPool, task.spawn(function()
+        while loopChallengeRunning and globalRunning do
+            RunGeneratorCode()
+            task.wait(0.9)
+        end
+    end))
+
+    table.insert(threadPool, task.spawn(function()
+        while loopChallengeRunning and globalRunning do
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remotes.IncubatorClaim:InvokeServer()
+            end)
+            task.wait(1)
+        end
+    end))
+end
+
+local function stopLoop()
+    loopChallengeRunning = false
+    suspendTowerLoops = false
+    toggleBtn.Text = "自动重生 当前状态:[关闭] | 本次挂机已重生"..detectTriggerCount.."次"
+end
+
+toggleBtn.MouseButton1Click:Connect(function()
+    if loopChallengeRunning then
+        stopLoop()
+    else
+        startLoop()
+    end
+end)
+
+local directions = {
+    Vector3.new(1,0,-1),
+    Vector3.new(-1,0,-1),
+    Vector3.new(-1,0,1),
+    Vector3.new(1,0,1),
+    Vector3.new(0,0,-1),
+    Vector3.new(0,0,1),
+    Vector3.new(-1,0,0),
+    Vector3.new(1,0,0)
+}
+
+local afkThread
+afkThread = task.spawn(function()
+    local baseMoveStep = 10
+    local maxDistance = 6.6
+    local tickDelay = 0.05
+    local currentDirIndex = math.random(1,#directions)
+    local traveled = 0
+    while task.wait(tickDelay) do
+        if not globalRunning or not autoAfk then
+            currentDirIndex = math.random(1,#directions)
+            traveled = 0
+            spawnPosition = nil
+            continue
+        end
+        local char = localPlayer.Character
+        if not char then continue end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then continue end
+        if not spawnPosition then
+            spawnPosition = root.Position
+        end
+        local targetDir = directions[currentDirIndex].Unit
+        local nextPos = root.Position + targetDir * baseMoveStep * tickDelay
+        local dx = math.abs(nextPos.X - spawnPosition.X)
+        local dz = math.abs(nextPos.Z - spawnPosition.Z)
+        if dx > rangeLimit or dz > rangeLimit then
+            root.CFrame = CFrame.new(spawnPosition)
+            currentDirIndex = math.random(1,#directions)
+            traveled = 0
+            continue
+        end
+        root.CFrame += targetDir * baseMoveStep * tickDelay
+        traveled += baseMoveStep * tickDelay
+        if traveled >= maxDistance then
+            currentDirIndex = math.random(1,#directions)
+            traveled = 0
+        end
+    end
+end)
+table.insert(threadPool, afkThread)
+
+afkMoveBtn.MouseButton1Click:Connect(function()
+    autoAfk = not autoAfk
+    if autoAfk then
+        afkMoveBtn.Text = "挂机移动 当前状态:[开启]"
+    else
+        afkMoveBtn.Text = "挂机移动 当前状态:[关闭]"
+    end
+end)
+
+--=====【捡垃圾逻辑（修复寻路卡死版）】=====
+local scrapThread1, scrapThread2
+
+local function ScrapMainLoop()
+    while autoScrapRunning do
+        local delayTime = 0.5
+        local recyclerUI = workspace:FindFirstChild("Recyclers") and workspace.Recyclers:FindFirstChild("RecyclerUI")
+        if recyclerUI and recyclerUI:FindFirstChildOfClass("Part") then
+            recycleDestination = recyclerUI:FindFirstChildOfClass("Part").Position
+        end
+        local Character = localPlayer.Character
+        if not Character then
+            task.wait(delayTime)
+            continue
+        end
+        local RootPart = Character:FindFirstChild("HumanoidRootPart")
+        local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+        if not Humanoid or not RootPart or not recycleDestination then
+            task.wait(delayTime)
+            continue
+        end
+
+        local state
+        if collectedCount < selectNum then
+            state = "FindScrap"
+        else
+            state = "GoHome"
+        end
+
+        if state == "FindScrap" then
+            local scrapTable = {}
+            local playerPos = RootPart.Position
+            for _, item in ipairs(workspace:GetChildren()) do
+                if item:IsA("Model") and item.Name == "PitScrap" then
+                    local scrapPart = item:FindFirstChildOfClass("Part")
+                    if scrapPart then
+                        local dist = (playerPos - scrapPart.Position).Magnitude
+                        table.insert(scrapTable, {
+                            Model = item,
+                            PartPos = scrapPart.Position,
+                            Dist = dist
+                        })
+                    end
+                end
+            end
+            table.sort(scrapTable, function(a,b) return a.Dist < b.Dist end)
+            if #scrapTable > 0 then
+                local nearestScrap = scrapTable[1]
+                targetScrapPos = nearestScrap.PartPos
+                local dist = (playerPos - targetScrapPos).Magnitude
+                if dist <= reachRange then
+                    collectedCount += 1
+                    targetScrapPos = nil
+                else
+                    Humanoid:MoveTo(targetScrapPos)
+                end
+            end
+        elseif state == "GoHome" then
+            local dist = (RootPart.Position - recycleDestination).Magnitude
+            if dist <= reachRange then
+                collectedCount = 0
+            else
+                Humanoid:MoveTo(recycleDestination)
+            end
+        end
+        task.wait(delayTime)
+    end
+    local char = localPlayer.Character
+    if char and char:FindFirstChildOfClass("Humanoid") then
+        char.Humanoid:Stop()
+    end
+end
+
+local function UpgradeRecyclerLoop()
+    while autoScrapRunning do
+        task.wait(0.5)
+        pcall(function()
+            game:GetService("ReplicatedStorage").Remotes.UpgradeRecycler:InvokeServer()
+        end)
+    end
+end
+
+scrapBtn.MouseButton1Click:Connect(function()
+    autoScrapRunning = not autoScrapRunning
+    if autoScrapRunning then
+        scrapBtn.Text = "自动捡垃圾 当前状态:[开启]"
+        targetScrapPos = nil
+        collectedCount = 0
+        scrapThread1 = task.spawn(ScrapMainLoop)
+        scrapThread2 = task.spawn(UpgradeRecyclerLoop)
+        table.insert(threadPool, scrapThread1)
+        table.insert(threadPool, scrapThread2)
+    else
+        scrapBtn.Text = "自动捡垃圾 当前状态:[关闭]"
+        autoScrapRunning = false
+        targetScrapPos = nil
+        local char = localPlayer.Character
+        if char and char:FindFirstChildOfClass("Humanoid") then
+            char.Humanoid:Stop()
+        end
+    end
+end)
+--=====捡垃圾结束=====
+
+local ConfirmFrame = Instance.new("Frame")
+ConfirmFrame.Size = UDim2.new(0, 260, 0, 160)
+ConfirmFrame.Position = UDim2.new(0.5, -130, 0.5, -80)
+ConfirmFrame.BackgroundColor3 = Color3.new(0.12,0.12,0.18)
+ConfirmFrame.BorderColor3 = Color3.new(0.5,0.6,0.95)
+ConfirmFrame.BorderSizePixel = 2
+ConfirmFrame.Visible = false
+ConfirmFrame.Parent = ScreenGui
+
+local ConfirmText = Instance.new("TextLabel")
+ConfirmText.Size = UDim2.new(0.9,0,0,50)
+ConfirmText.Position = UDim2.new(0.05,0,0.05,0)
+ConfirmText.BackgroundTransparency = 1
+ConfirmText.Text = "确认关闭面板？\n将会停止所有运行功能"
+ConfirmText.TextColor3 = Color3.new(1,1,1)
+ConfirmText.Font = Enum.Font.SourceSansBold
+ConfirmText.TextSize = 16
+ConfirmText.TextWrapped = true
+ConfirmText.Parent = ConfirmFrame
+
+local NoBtn = Instance.new("TextButton")
+NoBtn.Size = UDim2.new(0, 100, 0, 40)
+NoBtn.Position = UDim2.new(0.05,0,0.65,0)
+NoBtn.BackgroundColor3 = Color3.new(0.2,0.3,0.45)
+NoBtn.Text = "否"
+NoBtn.TextColor3 = Color3.new(1,1,1)
+NoBtn.Font = Enum.Font.SourceSansBold
+NoBtn.TextSize = 16
+NoBtn.Parent = ConfirmFrame
+
+local YesBtn = Instance.new("TextButton")
+YesBtn.Size = UDim2.new(0, 100, 0, 40)
+YesBtn.Position = UDim2.new(0.62,0,0.65,0)
+YesBtn.BackgroundColor3 = Color3.new(0.45,0.2,0.2)
+YesBtn.Text = "是"
+YesBtn.TextColor3 = Color3.new(1,1,1)
+YesBtn.Font = Enum.Font.SourceSansBold
+YesBtn.TextSize = 16
+YesBtn.Parent = ConfirmFrame
+
+local function MakeDraggable(guiObj)
+    local dragging = false
+    local startTouchPos
+    local objStartPosition
+    local activeInput = nil
+    guiObj.InputBegan:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType.MouseButton1) and not dragging then
+            dragging = true
+            activeInput = input
+            startTouchPos = input.Position
+            objStartPosition = guiObj.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input == activeInput then
+            local offset = input.Position - startTouchPos
+            guiObj.Position = UDim2.new(objStartPosition.X.Scale, objStartPosition.X.Offset + offset.X,objStartPosition.Y.Scale, objStartPosition.Y.Offset + offset.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input == activeInput then
+            dragging = false
+            activeInput = nil
+        end
+    end)
+end
+
+local resizeDragging = false
+local resizeStartPos
+local startSize
+local resizeInput = nil
+ResizeHandle.InputBegan:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType.MouseButton1) and not resizeDragging then
+        resizeDragging = true
+        resizeInput = input
+        resizeStartPos = input.Position
+        startSize = Vector2.new(MainPanel.Size.X.Offset, MainPanel.Size.Y.Offset)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if resizeDragging and input == resizeInput then
+        local delta = input.Position - resizeStartPos
+        local newW = math.max(220, startSize.X + delta.X)
+        local newH = math.max(260, startSize.Y + delta.Y)
+        MainPanel.Size = UDim2.new(0, newW, 0, newH)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input == resizeInput then
+        resizeDragging = false
+        resizeInput = nil
+    end
+end)
+
+MakeDraggable(MainButton)
+MakeDraggable(MainPanel)
+
+MainButton.MouseButton1Click:Connect(function()
+    panelVisible = not panelVisible
+    MainPanel.Visible = panelVisible
+    ConfirmFrame.Visible = false
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    ConfirmFrame.Visible = true
+end)
+
+NoBtn.MouseButton1Click:Connect(function()
+    ConfirmFrame.Visible = false
+end)
+
+YesBtn.MouseButton1Click:Connect(function()
+    stopLoop()
+    autoAfk = false
+    autoScrapRunning = false
+    afkMoveBtn.Text = "挂机移动 当前状态:[关闭]"
+    scrapBtn.Text = "自动捡垃圾 当前状态:[关闭]"
+    ConfirmFrame.Visible = false
+    MainPanel.Visible = false
+    panelVisible = false
+    MainButton.Visible = false
+end)
