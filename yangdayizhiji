@@ -1,3 +1,3 @@
---养大一只鸡战士功能面板
+--养大一只鸡脚本
 --脚本作者b站UID:647396778
 loadstring(game:HttpGet("https://raw.githubusercontent.com/30124OAO/yi/main/yangdayizhijizhanshi"))()
